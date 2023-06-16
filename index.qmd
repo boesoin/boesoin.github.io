@@ -1,11 +1,364 @@
 ---
-title: "boesoin.github.io"
+title: "Swiss Health Registry - Yearly report 2023"
+author: "A. Boss"
+date: today # this is easy :-)
 ---
 
-This is a Quarto website.
+## Background
 
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
+My work involves creating reproducible reports using our medical registry data. Typically, we create two types of reports: 'registry reports,' which utilize descriptive statistics from the entire registry, and 'clinic reports,' which compare data from one clinic to the aggregated data of all other clinics. Until now, we have been utilizing the statistical software package 'STATA.' While STATA allows for reproducible reporting, the project setup process is laborious, and it lacks flexibility in choosing the output format.
+
+RStudio, an open-source statistical package widely used in biomedical research, offers an alternative. Its package called 'QUARTO' promises to provide a simpler way of creating reproducible reports with multiple options for output formats.
+
+### Aim
+
+Aim of this project is to assess the potential of Rstudio's 'QUARTO'-package for reproducible reporting of registry data.
+
+### Methods
+
+Dummy data was obtained using the 'Framingam' data set ('riskCommunicator'-package). Dummy department_IDs were created. Please refer to the QUARTO-file for the code.
+
+```{r eval=TRUE, echo=FALSE, include=FALSE, warning=FALSE}
+
+sessionInfo() # will now not be printed...
+#### download if necessary and load the libraries:
+pacman::p_load(
+  rio,         # import/export
+  here,        # file locator
+  usethis,
+  gitcreds,
+  tidyverse,  # collection of packages...
+  medicaldata,
+  cowplot,
+  #Hmisc,
+  #ggpmisc,
+  renv, # --> lock file with info on environment
+  riskCommunicator, # contains data of the Frammingham-Study
+  quarto
+)
+###
+# Framingham heart study data
+fram <- riskCommunicator::framingham
+```
+
+```{r eval=TRUE, echo=FALSE, include=FALSE, warning = FALSE}
+#| echo: false
+############### preprocessing
+# We keep only the baseline examination data
+db <- subset(fram, TIME == 0)
+
+###################### inspect the file
+str(db)
+head(db)
+colnames(db)
+tail(db)
+summary(db)
+######################
+
+
+#### make the variable sex a factor
+#note: I did a quick search in the resources, but do not know if 1=m or 1=f...
+# for real data I would need to enquire
+
+# db <- db |>
+#   mutate(sex_str = "f") |>
+#    mutate(sex_str = replace(sex_str, SEX == 2, "m"))
+# table(db$sex_str) 
+
+
+db$SEX <- factor(db$SEX,
+  levels = c(1, 2),
+  labels = c("f", "m"))
+table(db$SEX)
+# I now have a factor which is labelled...
+####
+
+
+###### create department_id 
+db$dep_id <- 3
+
+
+### stable sorting of data:
+db <- arrange_all(db)
+### the code works, I think it produces the same ordering each time. should be tested…
+
+row_count <- nrow(db)
+print(paste("Number of rows in db:", row_count))
+## thank you ChatGTP!
+# Identify the indices of every 21th row
+indices <- seq(23, row_count, by = 23)
+### replace:
+db$dep_id[indices] <- 1
+
+### add dep-id no. 2:
+indices <- seq(29, row_count, by = 29)
+db$dep_id[indices] <- 2
+###
+
+# tabulate dep_ids:
+#summary(db$dep_id)
+table(db$dep_id)
+
+
+#### generate variable clinic
+# will be: 1 "my clinic" vs. 2 "all other clinics"
+  
+db$clinic <- 2
+
+# a simple replace:
+db <- db %>%
+  mutate(clinic = if_else(dep_id == 1, 1, clinic))
+table(db$clinic)
+# are there no easier "replace-functions"?
+### I could label my variable clinic here...
+
+# make the variable clinic also a factor:
+db$clinic <- factor(db$clinic,
+  levels = c(1, 2),
+  labels = c("my clinic", "all other clinics"))
+table(db$clinic)
+# --> this will then used in the table!
+
+
+####
+# ### set all variables to lower script:
+# https://www.codingprof.com/how-to-change-the-case-of-column-names-in-r-examples/
+
+### set variable names to lower-case:
+names(db) <- tolower(names(db)) # ok... that is not straight-forward
+str(db)
+###
+
+str(db)
+```
+
+## Table 1.1 Overview: Registry report
+
+Using the 'tidyverse'-package 'gtsummary', an overview-table can be created easily:
+
+```{r echo=FALSE, warning=FALSE}
+
+library(gtsummary)
+library(dplyr)
+db |>
+  dplyr::select(sex, age, bmi, cursmoke, prevhyp, diabetes,) |>
+  tbl_summary(
+    type = all_continuous() ~ "continuous2",
+    label = list(age ~ "Age [y]",
+                 bmi ~ "BMI [kg/m^2]",
+                 cursmoke ~ "currently smoking",
+                 prevhyp ~ "Hypertension",
+                 diabetes ~ "Diabetes"),
+    statistic = all_continuous() ~ c("{mean} ({sd})",
+                                     "{median} ({p25}, {p75})",
+                                     "{min}, {max}")
+  )
+
+```
+
+> > ***Note**: I am impressed! - using Stata it would cost me hundreds of lines creating such a table. Interestingly, the source code of "tbl_summary" is not that long: https://rdrr.io/cran/gtsummary/src/R/tbl_summary.R.*
+
+## Table 1.2 Overview: Clinic report
+
+The table above can easily be adapted to create an overview for a Clinic report simply by adding "by clinic" to the code. Furthermore, the option "p-value" is added:
+
+```{r echo=FALSE, warning=FALSE}
+#| echo: FALSE
+library(gtsummary)
+
+db |>
+  dplyr::select(clinic, sex, age, bmi, cursmoke, prevhyp, diabetes,) |>
+  tbl_summary(
+    by = clinic,
+    type = all_continuous() ~ "continuous2",
+    label = list(age ~ "Age [y]",
+                 bmi ~ "BMI [kg/m^2]",
+                 cursmoke ~ "currently smoking",
+                 prevhyp ~ "Hypertension",
+                 diabetes ~ "Diabetes"),
+    statistic = all_continuous() ~ c("{mean} ({sd})",
+                                     "{median} ({p25}, {p75})",
+                                     "{min}, {max}")
+  ) |>
+  add_p() # note: added w/o looking into details. Idea: gives hint if there are significant differences
+```
+
+> > **Note 1**: p-values only provide **indications** of potential differences between my clinic and all other clinics. No correction for repeated testing has been performed.
+
+> > \***Note2**: p-values are calculated using the default-options. For an actual report I may consider using t-test e.g. if N\>100 vs. Wilcoxon-test for 10\<N\<100. Of course this needs to be programmed flexibly as I do not have a-priori knowledge of N.
+
+## Graph 2.1. Density plot of age
+
+A density plot of the age-distribution in my clinic vs. all other clinics is shown below:
 
 ```{r}
-1 + 1
+#| echo: FALSE
+library(gtsummary)  
+# ##### add a density-plot of the variable age:
+db |>
+  dplyr::select(age,clinic) |>
+
+  ggplot(aes(x = age, fill = clinic)) +
+    geom_density(alpha = 0.5) +
+    xlab("Age") +
+    ylab("Density") +
+    ggtitle("Density Plot of Age by Clinic") +
+    scale_fill_brewer(palette = "Set2") +
+    theme_minimal()
+
 ```
+
+## 3 Data exploration
+
+### 3.1 Methods
+
+One could now do a t-test for age between the two groups "my clinic" vs. "all other clinics". Since this is not very interesting, the following is done instead: Quartiles of BMI are created. Thereafter the hypothesis will be tested that systolic blood pressure (sysbp) is different in the highest vs. lowest quartile of BMI. This will be done for the entire registry (chaptr. 3.2) and for "my clinic" only (chaptr. 3.3).
+
+### 3.2.1 box-plot of systolic bp
+
+A box-plot of sysbp for quartiles 1 and 4 of BMI is shown below.
+
+```{r echo=FALSE, warning=FALSE}
+
+library(dplyr)
+library(rstatix)
+#str(db)
+db|>
+  mutate(bmi_group = ntile(bmi, 4)) |> ## does it what I expect? i.e. generate  --> should be tested...
+  dplyr::filter(bmi_group == 1 | bmi_group == 4) |>
+  ggplot(aes(x = as.factor(bmi_group), y = sysbp)) +
+  geom_boxplot() +
+  xlab("BMI Group") +
+  ylab("Systolic blood pressure [mmHg]") +
+  ggtitle("Boxplot of BMI in the lowest and highest quartile of bmi")  +
+  theme_minimal()
+
+```
+
+The graph indeed indicates that there may be a significant (and potentially relevant) difference between the two groups. Let's do a t-test.
+
+### 3.2.2 t-test (entire registry data)
+
+Since the number of observations is relatively high in both groups, a t-test can be performed (central limit theorem).
+
+```{r}
+#| echo: FALSE
+#table(db$bmi_group)
+# if I do this for the entire registry, I am safe, the numbers are high...
+
+### hypothesis: the sysbp is different in the group of the highest and lowest bmi:
+#### I am now doing a t-test:
+
+#?t_test
+
+db|>
+  mutate(bmi_group = ntile(bmi, 4)) |> ## does it what I expect? i.e. generate  --> should be tested...
+  dplyr::filter(bmi_group == 1 | bmi_group == 4) |>
+  # Two-samples unpaired test
+  #:::::::::::::::::::::::::::::::::::::::::
+  t_test(sysbp ~ bmi_group)
+
+```
+
+Indeed, the p-value of 1.17e-70 indicates extremely strong evidence against the null hypothesis of equal means across groups. Therefore, the observed difference is highly significant.
+
+## 3.3 Analysis of sysbp within "my clinic"
+
+In the following, the same hypothesis will be tested for the reduced data set of "my clinic". It is anticipated that due to the lower number of observations and therefore increased likeliness of non-normal data distribution, non-parametric tests will have to be applied.
+
+### 3.3.1 Histogram and qqplot within "my clinic"
+
+In the following, the histograms and qqplots for both groups, first and fourth quartile of BMI, are shown:
+
+```{r}
+#| echo: FALSE
+#str(db)
+#table(db$clinic)
+
+db_clin<- db |>
+  dplyr::filter(clinic == "my clinic") |>  # apparently, I have to use the label of the factor...
+  mutate(bmi_group = ntile(bmi, 4)) |> ## does it what I expect? i.e. generate quartiles of bmi  --> should be tested...
+  dplyr::filter(bmi_group == 1 | bmi_group == 4)
+#table(db_clin$bmi_group)
+#str(db_clin)
+
+### now I have a a dataset with lower n..
+# --> let's make a histogram across groups
+
+db_clin %>%
+  ggplot(aes(sysbp)) +
+  geom_histogram(bins = 16, alpha=0.5) +
+  xlab("Systolic blood pressure [mmHg]") +
+  ylab("Count") +
+  ggtitle("Histogram of Systolic Blood Pressure") +
+  theme_minimal() +
+  facet_wrap(~ bmi_group, labeller = labeller(bmi_group = c("1" = "1st BMI-quartile", "4" = " 4th BMI-quartile")))
+###
+
+### qqplot
+# library(ggplot2)
+# library(dplyr)
+
+db_clin %>%
+  ggplot(aes(sample = sysbp)) +
+  geom_qq() +
+  geom_qq_line(distribution = stats::qnorm) +
+  xlab("Theoretical Quantiles") +
+  ylab("Sample Quantiles") +
+  ggtitle("QQ Plot of Systolic Blood Pressure") +
+  theme_minimal() +
+  facet_wrap(~ bmi_group, labeller = labeller(bmi_group = c("1" = "1st quartile of BMI", "4" = " 4th quartile of BMI")))  
+```
+
+The graphs indicate that the data is not uniformly distributed, particularly for the 4th BMI quartile, where the distribution of sysbp appears to be right-skewed. To test this hypothesis, a Shapiro test is performed.
+
+### 3.3.2 Shapiro-test
+
+```{r}
+#| echo: FALSE
+### normality-test:
+# remember: Ho: normal distribution
+#db_clin %>%
+#  shapiro_test(sysbp)
+
+### test: for-loop:
+db_clin <- arrange(db_clin, bmi_group)
+groups <- unique(db_clin$bmi_group) # this will create a vector. How can I change the order? --> by ordering the data first ;-) 
+
+counter <- 0
+for (group in groups) {
+  counter <- counter + 1
+  #print(paste("Printing group:", group))
+  #print(paste("Printing counter:", counter))
+  
+  df_name <- paste("db_clin_", counter, sep = "") # this concatenates
+  assign(df_name, db_clin %>% # assigns a value to a name..
+           filter(bmi_group == group))
+  # Perform Shapiro-Wilk test on sysbp variable for each data frame
+  shapiro_result <- shapiro_test(get(df_name)$sysbp)
+  print(paste("Shapiro-Wilk test result for", df_name))
+  print(shapiro_result)
+}  
+# --> since the p-value of one group and both groups together is not in agreement with the H0, I will now perform a non-parametric test.
+```
+
+> > **Note**: the Shapiro-test has been performed twice using a for-loop. In the output above "db_clin_1" refers to the first quartile of BMI, "db_clin_2" refers to the 4th quartile of BMI.
+
+For the group with the highest BMI, we obtain a highly significant test-result. This means that the present distribution of data is very unlikely under the null hypothesis of normal distribution. Therefore, the non-parametric Wilcoxon-test is performed.
+
+### 3.3.3 Wilcoxon-Test
+
+```{r}
+#| echo: FALSE
+db_clin %>%
+  wilcox_test(sysbp ~ bmi_group)
+
+```
+
+Also in this reduced data-set of "my clinic", using the non-parametric Wilcoxon-test, a highly significant p-value suggests a highly significant difference between the two groups.
+
+## Preliminary conclusion and outlook
+
+Simple reproducible reports can easily be implemented using 'QUARTO'. One of the next steps is the automated creation of clinic reports using loops (or the mapping functions of the 'purrr' package).
+
+
