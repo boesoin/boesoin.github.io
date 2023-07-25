@@ -41,7 +41,7 @@ pacman::p_load(
 fram <- riskCommunicator::framingham
 ```
 
-```{r eval=TRUE, echo=FALSE, include=FALSE, warning = FALSE}
+```{r eval=TRUE, echo=TRUE, include=FALSE, warning = FALSE}
 #| echo: false
 ############### preprocessing
 # We keep only the baseline examination data
@@ -136,7 +136,7 @@ str(db)
 
 Using the 'tidyverse'-package 'gtsummary', an overview-table can be created easily:
 
-```{r echo=FALSE, warning=FALSE}
+```{r echo=TRUE, warning=FALSE}
 
 library(gtsummary)
 library(dplyr)
@@ -162,7 +162,7 @@ db |>
 
 The table above can easily be adapted to create an overview for a Clinic report simply by adding "by clinic" to the code. Furthermore, the option "p-value" is added:
 
-```{r echo=FALSE, warning=FALSE}
+```{r echo=TRUE, warning=FALSE}
 #| echo: FALSE
 library(gtsummary)
 
@@ -192,7 +192,7 @@ db |>
 A density plot of the age-distribution in my clinic vs. all other clinics is shown below:
 
 ```{r}
-#| echo: FALSE
+#| echo: TRUE
 library(gtsummary)  
 # ##### add a density-plot of the variable age:
 db |>
@@ -218,7 +218,7 @@ One could now do a t-test for age between the two groups "my clinic" vs. "all ot
 
 A box-plot of sysbp for quartiles 1 and 4 of BMI is shown below.
 
-```{r echo=FALSE, warning=FALSE}
+```{r echo=TRUE, warning=FALSE}
 
 library(dplyr)
 library(rstatix)
@@ -242,7 +242,7 @@ The graph indeed indicates that there may be a significant (and potentially rele
 Since the number of observations is relatively high in both groups, a t-test can be performed (central limit theorem).
 
 ```{r}
-#| echo: FALSE
+#| echo: TRUE
 #table(db$bmi_group)
 # if I do this for the entire registry, I am safe, the numbers are high...
 
@@ -252,7 +252,7 @@ Since the number of observations is relatively high in both groups, a t-test can
 #?t_test
 
 db|>
-  mutate(bmi_group = ntile(bmi, 4)) |> ## does it what I expect? i.e. generate  --> should be tested...
+  mutate(bmi_group = ntile(bmi, 4)) |> ## does it what I expect? i.e. generate quartiles  --> should be tested...
   dplyr::filter(bmi_group == 1 | bmi_group == 4) |>
   # Two-samples unpaired test
   #:::::::::::::::::::::::::::::::::::::::::
@@ -271,7 +271,7 @@ In the following, the same hypothesis will be tested for the reduced data set of
 In the following, the histograms and qqplots for both groups, first and fourth quartile of BMI, are shown:
 
 ```{r}
-#| echo: FALSE
+#| echo: TRUE
 #str(db)
 #table(db$clinic)
 
@@ -315,7 +315,7 @@ The graphs indicate that the data is not uniformly distributed, particularly for
 ### 3.3.2 Shapiro-test
 
 ```{r}
-#| echo: FALSE
+#| echo: TRUE
 ### normality-test:
 # remember: Ho: normal distribution
 #db_clin %>%
@@ -349,7 +349,7 @@ For the group with the highest BMI, we obtain a highly significant test-result. 
 ### 3.3.3 Wilcoxon-Test
 
 ```{r}
-#| echo: FALSE
+#| echo: TRUE
 db_clin %>%
   wilcox_test(sysbp ~ bmi_group)
 
@@ -360,5 +360,3 @@ Also in this reduced data-set of "my clinic", using the non-parametric Wilcoxon-
 ## Preliminary conclusion and outlook
 
 Simple reproducible reports can easily be implemented using 'QUARTO'. One of the next steps is the automated creation of clinic reports using loops (or the mapping functions of the 'purrr' package).
-
-
